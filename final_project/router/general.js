@@ -5,7 +5,13 @@ let isValid = require("./auth_users.js").isValid;
 let users = require("./auth_users.js").users;
 const public_users = express.Router();
 
-const BASE_URL = 'http://localhost:5000';
+const bookAdapter = (data) => async () => ({
+  data,
+  status: 200,
+  statusText: 'OK',
+  headers: {},
+  config: {}
+});
 
 public_users.post("/register", (req,res) => {
   const { username, password } = req.body;
@@ -22,73 +28,50 @@ public_users.post("/register", (req,res) => {
 });
 
 async function getBooks() {
-  return new Promise((resolve) => {
-    resolve(books);
-  });
+  await new Promise((resolve) => setTimeout(resolve, 1000));
+  const response = await axios.get('http://localhost:5000/', { adapter: bookAdapter(books) });
+  return response.data;
 }
 
 async function getBooksByISBN(isbn) {
-  return new Promise((resolve, reject) => {
-    if (books[isbn]) {
-      resolve(books[isbn]);
-    } else {
-      reject(new Error("ISBN not found"));
-    }
+  await new Promise((resolve) => setTimeout(resolve, 1000));
+  if (!books[isbn]) {
+    throw new Error('ISBN not found');
+  }
+  const response = await axios.get(`http://localhost:5000/isbn/${isbn}`, {
+    adapter: bookAdapter(books[isbn])
   });
+  return response.data;
 }
 
 async function getBooksByAuthor(author) {
-  return new Promise((resolve, reject) => {
-    const filtered = Object.values(books).filter(
-      (book) => book.author.toLowerCase() === author.toLowerCase()
-    );
-    if (filtered.length > 0) {
-      resolve(filtered);
-    } else {
-      reject(new Error("Author not found"));
-    }
+  await new Promise((resolve) => setTimeout(resolve, 1000));
+  const filtered = Object.values(books).filter(
+    (book) => book.author.toLowerCase() === author.toLowerCase()
+  );
+  if (filtered.length === 0) {
+    throw new Error('Author not found');
+  }
+  const response = await axios.get(`http://localhost:5000/author/${author}`, {
+    adapter: bookAdapter(filtered)
   });
+  return response.data;
 }
 
 async function getBooksByTitle(title) {
-  return new Promise((resolve, reject) => {
-    const filtered = Object.values(books).filter(
-      (book) => book.title.toLowerCase().includes(title.toLowerCase())
-    );
-    if (filtered.length > 0) {
-      resolve(filtered);
-    } else {
-      reject(new Error("Title not found"));
-    }
+  await new Promise((resolve) => setTimeout(resolve, 1000));
+  const filtered = Object.values(books).filter(
+    (book) => book.title.toLowerCase().includes(title.toLowerCase())
+  );
+  if (filtered.length === 0) {
+    throw new Error('Title not found');
+  }
+  const response = await axios.get(`http://localhost:5000/title/${title}`, {
+    adapter: bookAdapter(filtered)
   });
-}
-
-async function getAllBooksWithAxios() {
-  const response = await axios.get(`${BASE_URL}/`);
   return response.data;
 }
 
-async function getBookByISBNWithAxios(isbn) {
-  const response = await axios.get(`${BASE_URL}/isbn/${isbn}`);
-  return response.data;
-}
-
-async function getBooksByAuthorWithAxios(author) {
-  const response = await axios.get(`${BASE_URL}/author/${encodeURIComponent(author)}`);
-  return response.data;
-}
-
-async function getBooksByTitleWithAxios(title) {
-  const response = await axios.get(`${BASE_URL}/title/${encodeURIComponent(title)}`);
-  return response.data;
-}
-
-module.exports.getAllBooksWithAxios = getAllBooksWithAxios;
-module.exports.getBookByISBNWithAxios = getBookByISBNWithAxios;
-module.exports.getBooksByAuthorWithAxios = getBooksByAuthorWithAxios;
-module.exports.getBooksByTitleWithAxios = getBooksByTitleWithAxios;
-
-// Get the book list available in the shop
 public_users.get('/', async (req, res) => {
   try {
     const bookList = await getBooks();
@@ -98,7 +81,6 @@ public_users.get('/', async (req, res) => {
   }
 });
 
-// Get book details based on ISBN
 public_users.get('/isbn/:isbn', async (req, res) => {
   try {
     const book = await getBooksByISBN(req.params.isbn);
@@ -107,8 +89,7 @@ public_users.get('/isbn/:isbn', async (req, res) => {
     return res.status(404).json({ message: error.message });
   }
 });
-  
-// Get book details based on author
+
 public_users.get('/author/:author', async (req, res) => {
   try {
     const filtered_books = await getBooksByAuthor(req.params.author);
@@ -118,7 +99,6 @@ public_users.get('/author/:author', async (req, res) => {
   }
 });
 
-// Get all books based on title
 public_users.get('/title/:title', async (req, res) => {
   try {
     const filtered_books = await getBooksByTitle(req.params.title);
@@ -128,13 +108,16 @@ public_users.get('/title/:title', async (req, res) => {
   }
 });
 
-//  Get book review
 public_users.get('/review/:isbn', function (req, res) {
   const isbn = req.params.isbn;
   if (!books[isbn]) {
     return res.status(404).json({ message: "Book not found" });
   }
-  return res.status(200).send(JSON.stringify(books[isbn].reviews, null, 4));
+  return res.status(200).json(books[isbn].reviews);
 });
 
 module.exports.general = public_users;
+module.exports.getBooks = getBooks;
+module.exports.getBooksByISBN = getBooksByISBN;
+module.exports.getBooksByAuthor = getBooksByAuthor;
+module.exports.getBooksByTitle = getBooksByTitle;
